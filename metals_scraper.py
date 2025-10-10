@@ -147,12 +147,38 @@ class MetalsScraper:
         silver = data.get('silver', {})
 
         # Format the display text - keep it concise to fit in 6 rows
+        # Parse the date to get month and day (e.g., "Oct 10, 2025" -> "October 10")
+        date_str = gold.get('date', '')
+        if date_str:
+            # Extract month and day (remove year)
+            date_parts = date_str.split(',')
+            if len(date_parts) > 0:
+                month_day = date_parts[0].strip()  # "Oct 10"
+
+                # Spell out abbreviated months
+                month_map = {
+                    'Jan': 'January', 'Feb': 'February', 'Mar': 'March',
+                    'Apr': 'April', 'May': 'May', 'Jun': 'June',
+                    'Jul': 'July', 'Aug': 'August', 'Sep': 'September',
+                    'Oct': 'October', 'Nov': 'November', 'Dec': 'December'
+                }
+
+                for abbr, full in month_map.items():
+                    if month_day.startswith(abbr):
+                        month_day = month_day.replace(abbr, full, 1)
+                        break
+
+                date_str = month_day
+
+        time_str = gold.get('time', '')
+        datetime_display = f"{date_str} {time_str}".strip()
+
         lines = []
         lines.append(f"GOLD  BID:{gold.get('bid', 'N/A')}")
         lines.append(f"      ASK:{gold.get('ask', 'N/A')}")
         lines.append("")
         lines.append(f"SILVER BID:{silver.get('bid', 'N/A')}")
         lines.append(f"       ASK:{silver.get('ask', 'N/A')}")
-        lines.append(f"{gold.get('time', '')}")
+        lines.append(datetime_display)
 
         return "\n".join(lines)
