@@ -4,6 +4,10 @@ Allows users to send and read messages from their Vestaboard.
 """
 
 import gradio as gr
+import argparse
+import time
+import signal
+import sys
 from vestaboard_client import VestaboardClient
 from typing import Tuple
 
@@ -223,8 +227,84 @@ class VestaboardApp:
         return interface
 
 
+def headless_mode():
+    """
+    Run in headless mode - updates precious metals prices every minute.
+    """
+    print("\n" + "="*50)
+    print("Vestaboard Controller - Headless Mode")
+    print("Updating precious metals prices every 60 seconds")
+    print("Press Ctrl+C to stop")
+    print("="*50 + "\n")
+
+    app = VestaboardApp()
+
+    if not app.client:
+        print("ERROR: Failed to initialize Vestaboard client")
+        print("Check your configuration in config.py")
+        sys.exit(1)
+
+    # Flag to handle graceful shutdown
+    running = True
+
+    def signal_handler(sig, frame):
+        nonlocal running
+        print("\n\nShutting down gracefully...")
+        running = False
+
+    # Register signal handler for Ctrl+C
+    signal.signal(signal.SIGINT, signal_handler)
+
+    update_count = 0
+
+    while running:
+        update_count += 1
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Update #{update_count}")
+
+        try:
+            result = app.client.display_metals_prices()
+
+            if result['status'] == 'success':
+                print(f"  ✓ {result['message']}")
+            else:
+                print(f"  ✗ {result['message']}")
+
+        except Exception as e:
+            print(f"  ✗ Error: {str(e)}")
+
+        # Wait 60 seconds before next update (check running flag every second)
+        for _ in range(60):
+            if not running:
+                break
+            time.sleep(1)
+
+    print("\nStopped.")
+
+
 def main():
     """Main entry point for the application."""
+    parser = argparse.ArgumentParser(
+        description='Vestaboard Controller - Send messages and display information on your Vestaboard'
+    )
+    parser.add_argument(
+        '--headless',
+        action='store_true',
+        help='Run in headless mode (no GUI) - automatically update precious metals prices every minute'
+    )
+    parser.add_argument(
+        '--metals',
+        action='store_true',
+        help='Alias for --headless (displays precious metals prices every minute)'
+    )
+
+    args = parser.parse_args()
+
+    # Run in headless mode if requested
+    if args.headless or args.metals:
+        headless_mode()
+        return
+
+    # Otherwise, run the GUI
     app = VestaboardApp()
     interface = app.create_interface()
 
