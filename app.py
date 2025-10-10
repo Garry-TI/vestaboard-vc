@@ -69,6 +69,19 @@ class VestaboardApp:
         else:
             return result['message']
 
+    def test_color_bits(self) -> str:
+        """
+        Test all color tiles on the Vestaboard.
+
+        Returns:
+            Status message
+        """
+        if not self.client:
+            return "Error: Client not initialized"
+
+        result = self.client.test_color_bits()
+        return result['message']
+
     def _format_board_data(self, board_data) -> str:
         """
         Format board data for display.
@@ -106,6 +119,14 @@ class VestaboardApp:
                         interactive=False
                     )
 
+            with gr.Row():
+                with gr.Column():
+                    color_test_btn = gr.Button("Test Color Bits", variant="secondary")
+                    color_test_output = gr.Textbox(
+                        label="Color Test Status",
+                        interactive=False
+                    )
+
             gr.Markdown("---")
 
             with gr.Row():
@@ -138,6 +159,7 @@ class VestaboardApp:
             - Vestaboard displays up to 6 rows of 22 characters each
             - Messages will be automatically formatted to fit the display
             - Use the "Test Connection" button to verify your Vestaboard is accessible
+            - Use the "Test Color Bits" button to test all positions with color tiles (codes 63-71)
             - Current board content shows the raw character codes
             """)
 
@@ -145,6 +167,11 @@ class VestaboardApp:
             connection_btn.click(
                 fn=self.test_connection,
                 outputs=connection_output
+            )
+
+            color_test_btn.click(
+                fn=self.test_color_bits,
+                outputs=color_test_output
             )
 
             send_btn.click(

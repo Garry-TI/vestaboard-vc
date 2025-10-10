@@ -116,3 +116,46 @@ class VestaboardClient:
                 'status': 'error',
                 'message': f'Connection failed: {str(e)}'
             }
+
+    def test_color_bits(self) -> Dict[str, Any]:
+        """
+        Test all color tiles on the Vestaboard.
+        Cycles through character codes 63-71 (color tiles) for all positions.
+
+        Returns:
+            Dictionary with status and message
+        """
+        try:
+            # Character codes 63-71 are the color tiles
+            # 63: Red, 64: Orange, 65: Yellow, 66: Green, 67: Blue, 68: Violet, 69: White, 70: Black (blank), 71: Filled
+            color_codes = list(range(63, 72))  # 63 through 71 inclusive
+
+            # Vestaboard is 6 rows x 22 columns = 132 positions
+            rows = 6
+            cols = 22
+            total_positions = rows * cols
+
+            # Create a pattern that cycles through all color codes for all positions
+            pattern = []
+            code_index = 0
+
+            for row in range(rows):
+                row_data = []
+                for col in range(cols):
+                    # Cycle through color codes
+                    row_data.append(color_codes[code_index % len(color_codes)])
+                    code_index += 1
+                pattern.append(row_data)
+
+            # Send the pattern to the board
+            self.board.raw(pattern)
+
+            return {
+                'status': 'success',
+                'message': f'Color test pattern sent successfully! Displaying {len(color_codes)} color codes across all {total_positions} positions.'
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Error sending color test pattern: {str(e)}'
+            }
