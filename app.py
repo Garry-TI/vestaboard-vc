@@ -82,6 +82,19 @@ class VestaboardApp:
         result = self.client.test_color_bits()
         return result['message']
 
+    def display_metals_prices(self) -> str:
+        """
+        Fetch and display Gold and Silver prices on the Vestaboard.
+
+        Returns:
+            Status message
+        """
+        if not self.client:
+            return "Error: Client not initialized"
+
+        result = self.client.display_metals_prices()
+        return result['message']
+
     def _format_board_data(self, board_data) -> str:
         """
         Format board data for display.
@@ -127,6 +140,15 @@ class VestaboardApp:
                         interactive=False
                     )
 
+            with gr.Row():
+                with gr.Column():
+                    metals_btn = gr.Button("Display Precious Metals Prices", variant="primary")
+                    metals_output = gr.Textbox(
+                        label="Metals Price Status",
+                        interactive=False,
+                        lines=4
+                    )
+
             gr.Markdown("---")
 
             with gr.Row():
@@ -160,6 +182,7 @@ class VestaboardApp:
             - Messages will be automatically formatted to fit the display
             - Use the "Test Connection" button to verify your Vestaboard is accessible
             - Use the "Test Color Bits" button to test all positions with color tiles (codes 63-71)
+            - Use the "Display Precious Metals Prices" button to fetch and show Gold/Silver prices from Kitco
             - Current board content shows the raw character codes
             """)
 
@@ -172,6 +195,11 @@ class VestaboardApp:
             color_test_btn.click(
                 fn=self.test_color_bits,
                 outputs=color_test_output
+            )
+
+            metals_btn.click(
+                fn=self.display_metals_prices,
+                outputs=metals_output
             )
 
             send_btn.click(

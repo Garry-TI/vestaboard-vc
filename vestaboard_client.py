@@ -6,6 +6,7 @@ Handles reading and writing messages to the Vestaboard.
 import vestaboard
 from typing import Optional, Dict, Any
 from config import VESTABOARD_CONFIG
+from metals_scraper import MetalsScraper
 
 
 class VestaboardClient:
@@ -27,6 +28,9 @@ class VestaboardClient:
             'ip': self.ip,
             'key': self.api_key
         })
+
+        # Initialize the metals scraper
+        self.metals_scraper = MetalsScraper()
 
     def send_message(self, message: str) -> Dict[str, Any]:
         """
@@ -158,4 +162,39 @@ class VestaboardClient:
             return {
                 'status': 'error',
                 'message': f'Error sending color test pattern: {str(e)}'
+            }
+
+    def display_metals_prices(self) -> Dict[str, Any]:
+        """
+        Fetch and display Gold and Silver prices on the Vestaboard.
+
+        Returns:
+            Dictionary with status and message
+        """
+        try:
+            # Fetch prices from Kitco
+            result = self.metals_scraper.fetch_prices()
+
+            if result['status'] != 'success':
+                return result
+
+            # Format the prices for Vestaboard display
+            message = self.metals_scraper.format_for_vestaboard(result)
+
+            # Send to Vestaboard
+            self.board.post(message)
+
+            data = result.get('data', {})
+            gold = data.get('gold', {})
+            silver = data.get('silver', {})
+
+            return {
+                'status': 'success',
+                'message': f'Prices displayed successfully!\nGold: Bid ${gold.get("bid")}, Ask ${gold.get("ask")}\nSilver: Bid ${silver.get("bid")}, Ask ${silver.get("ask")}'
+            }
+
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Error displaying metals prices: {str(e)}'
             }
