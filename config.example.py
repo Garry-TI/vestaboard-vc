@@ -19,7 +19,7 @@ LLM_MODELS = {
         'description': 'Qwen 3 4B Instruct - Fast and efficient'
     },
         'Llama-3.2-1B-Instruct': {
-        'model_id': 'meta-llama/Lama-3.2-1B-Instruct',
+        'model_id': 'meta-llama/Llama-3.2-1B-Instruct',
         'max_tokens': 132,  # Vestaboard character limit (6 rows × 22 chars)
         'temperature': 0.7,
         'description': 'Llama 3.2 1B Instruct - Fast and efficient'
