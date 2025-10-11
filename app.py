@@ -9,6 +9,8 @@ import time
 import signal
 import sys
 from vestaboard_client import VestaboardClient
+from llm_client import LLMClient
+from config import LLM_MODELS
 from typing import Tuple
 
 
@@ -23,6 +25,10 @@ class VestaboardApp:
         except Exception as e:
             self.client = None
             self.connection_status = f"Error initializing: {str(e)}"
+
+        # Initialize LLM client (lazy loading - will initialize on first use)
+        self.llm_client = None
+        self.current_llm_model = None
 
     def test_connection(self) -> str:
         """Test connection to Vestaboard."""
@@ -99,6 +105,73 @@ class VestaboardApp:
         result = self.client.display_metals_prices()
         return result['message']
 
+    def initialize_llm(self, model_name: str) -> str:
+        """
+        Initialize or change the LLM model.
+
+        Args:
+            model_name: Name of the model to load
+
+        Returns:
+            Status message
+        """
+        try:
+            if self.llm_client and self.current_llm_model == model_name:
+                return f"Model {model_name} already loaded"
+
+            self.llm_client = LLMClient(model_name)
+            result = self.llm_client.initialize()
+
+            if result['status'] == 'success':
+                self.current_llm_model = model_name
+                return f"✓ {result['message']}"
+            else:
+                return f"✗ {result['message']}"
+
+        except Exception as e:
+            return f"Error loading model: {str(e)}"
+
+    def chat_with_ai(self, user_question: str, model_name: str) -> Tuple[str, str]:
+        """
+        Send question to AI and display response on Vestaboard.
+
+        Args:
+            user_question: User's question for the AI
+            model_name: Selected model name
+
+        Returns:
+            Tuple of (AI response, Vestaboard status)
+        """
+        if not user_question or user_question.strip() == "":
+            return "Please enter a question", "No message to send"
+
+        # Initialize model if needed
+        if not self.llm_client or self.current_llm_model != model_name:
+            init_status = self.initialize_llm(model_name)
+            if "Error" in init_status or "✗" in init_status:
+                return f"Model initialization failed: {init_status}", "Model not ready"
+
+        # Generate AI response
+        try:
+            result = self.llm_client.generate_response(user_question, max_length=132)
+
+            if result['status'] != 'success':
+                return f"Error: {result['message']}", "AI generation failed"
+
+            ai_response = result['response']
+
+            # Send to Vestaboard
+            if self.client:
+                vb_result = self.client.send_message(ai_response)
+                vb_status = vb_result['message']
+            else:
+                vb_status = "Vestaboard client not initialized"
+
+            return ai_response, vb_status
+
+        except Exception as e:
+            return f"Error: {str(e)}", "Failed to process request"
+
     def _format_board_data(self, board_data) -> str:
         """
         Format board data for display.
@@ -156,6 +229,50 @@ class VestaboardApp:
             gr.Markdown("---")
 
             with gr.Row():
+                with gr.Column():
+                    gr.Markdown("### AI Chat to Vestaboard")
+                    gr.Markdown("Ask a question and the AI response will be sent to your Vestaboard")
+
+                    model_dropdown = gr.Dropdown(
+                        choices=list(LLM_MODELS.keys()),
+                        value=list(LLM_MODELS.keys())[0],
+                        label="Select AI Model",
+                        info="Choose which model to use for generating responses"
+                    )
+
+                    load_model_btn = gr.Button("Load Model", variant="secondary")
+                    model_status = gr.Textbox(
+                        label="Model Status",
+                        interactive=False,
+                        lines=2
+                    )
+
+                    chat_input = gr.Textbox(
+                        label="Your Question",
+                        placeholder="Ask the AI anything...",
+                        lines=3,
+                        max_lines=5
+                    )
+
+                    chat_btn = gr.Button("Ask AI & Send to Vestaboard", variant="primary")
+
+                    with gr.Row():
+                        with gr.Column():
+                            ai_response_output = gr.Textbox(
+                                label="AI Response",
+                                lines=6,
+                                interactive=False
+                            )
+                        with gr.Column():
+                            vestaboard_status_output = gr.Textbox(
+                                label="Vestaboard Status",
+                                lines=6,
+                                interactive=False
+                            )
+
+            gr.Markdown("---")
+
+            with gr.Row():
                 with gr.Column(scale=2):
                     gr.Markdown("### Send Message")
                     message_input = gr.Textbox(
@@ -182,11 +299,13 @@ class VestaboardApp:
             gr.Markdown("---")
             gr.Markdown("""
             ### Quick Tips:
-            - Vestaboard displays up to 6 rows of 22 characters each
+            - Vestaboard displays up to 6 rows of 22 characters each (132 characters total)
             - Messages will be automatically formatted to fit the display
             - Use the "Test Connection" button to verify your Vestaboard is accessible
             - Use the "Test Color Bits" button to test all positions with color tiles (codes 63-71)
             - Use the "Display Precious Metals Prices" button to fetch and show Gold/Silver prices from Kitco
+            - **AI Chat**: Load a model first, then ask questions. Responses are auto-truncated to 132 characters
+            - Model loading may take 1-2 minutes on first run (downloads from HuggingFace)
             - Current board content shows the raw character codes
             """)
 
@@ -204,6 +323,26 @@ class VestaboardApp:
             metals_btn.click(
                 fn=self.display_metals_prices,
                 outputs=metals_output
+            )
+
+            # AI Chat event handlers
+            load_model_btn.click(
+                fn=self.initialize_llm,
+                inputs=model_dropdown,
+                outputs=model_status
+            )
+
+            chat_btn.click(
+                fn=self.chat_with_ai,
+                inputs=[chat_input, model_dropdown],
+                outputs=[ai_response_output, vestaboard_status_output]
+            )
+
+            # Enter key shortcut for AI chat
+            chat_input.submit(
+                fn=self.chat_with_ai,
+                inputs=[chat_input, model_dropdown],
+                outputs=[ai_response_output, vestaboard_status_output]
             )
 
             send_btn.click(

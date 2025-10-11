@@ -8,6 +8,23 @@ from typing import Optional, Dict, Any
 from config import VESTABOARD_CONFIG
 from metals_scraper import MetalsScraper
 
+# Vestaboard supported characters mapping
+# Any character not in this set will be replaced with blank (space)
+VESTABOARD_CHARS = {
+    # Letters (uppercase only)
+    'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5, 'F': 6, 'G': 7, 'H': 8, 'I': 9, 'J': 10,
+    'K': 11, 'L': 12, 'M': 13, 'N': 14, 'O': 15, 'P': 16, 'Q': 17, 'R': 18, 'S': 19,
+    'T': 20, 'U': 21, 'V': 22, 'W': 23, 'X': 24, 'Y': 25, 'Z': 26,
+    # Numbers
+    '1': 27, '2': 28, '3': 29, '4': 30, '5': 31, '6': 32, '7': 33, '8': 34, '9': 35, '0': 36,
+    # Punctuation and symbols
+    '!': 37, '@': 38, '#': 39, '$': 40, '(': 41, ')': 42, '-': 44, '+': 46,
+    '&': 47, '=': 48, ';': 49, ':': 50, "'": 52, '"': 53, '%': 54, ',': 55,
+    '.': 56, '/': 59, '?': 60, '°': 62,
+    # Space (blank)
+    ' ': 0
+}
+
 
 class VestaboardClient:
     """Wrapper class for Vestaboard operations."""
@@ -32,9 +49,42 @@ class VestaboardClient:
         # Initialize the metals scraper
         self.metals_scraper = MetalsScraper()
 
+    def sanitize_message(self, message: str) -> str:
+        """
+        Sanitize message to only include Vestaboard-supported characters.
+        Unsupported characters are replaced with spaces.
+
+        Args:
+            message: Input message string
+
+        Returns:
+            Sanitized message with only supported characters
+        """
+        sanitized = []
+        replaced_chars = set()
+
+        for char in message:
+            # Convert lowercase to uppercase (Vestaboard only supports uppercase)
+            upper_char = char.upper()
+
+            # Check if character is supported
+            if upper_char in VESTABOARD_CHARS:
+                sanitized.append(upper_char)
+            else:
+                # Replace unsupported character with space
+                sanitized.append(' ')
+                if char not in ['\n', '\r', '\t']:  # Don't report whitespace replacements
+                    replaced_chars.add(char)
+
+        if replaced_chars:
+            print(f"Note: Replaced unsupported characters: {', '.join(sorted(replaced_chars))}")
+
+        return ''.join(sanitized)
+
     def send_message(self, message: str) -> Dict[str, Any]:
         """
         Send a text message to the Vestaboard.
+        Automatically sanitizes message to replace unsupported characters.
 
         Args:
             message: Text message to display on the board
@@ -43,10 +93,14 @@ class VestaboardClient:
             Dictionary with status and message
         """
         try:
-            self.board.post(message)
+            # Sanitize the message before sending
+            sanitized_message = self.sanitize_message(message)
+
+            # Send to board
+            self.board.post(sanitized_message)
             return {
                 'status': 'success',
-                'message': f'Message sent successfully: {message[:50]}...' if len(message) > 50 else f'Message sent successfully: {message}'
+                'message': f'Message sent successfully: {sanitized_message[:50]}...' if len(sanitized_message) > 50 else f'Message sent successfully: {sanitized_message}'
             }
         except Exception as e:
             return {
