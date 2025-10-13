@@ -368,11 +368,11 @@ class VestaboardApp:
 
 def headless_mode():
     """
-    Run in headless mode - updates precious metals prices every minute.
+    Run in headless mode - updates precious metals prices at the top of every minute.
     """
     print("\n" + "="*50)
     print("Vestaboard Controller - Headless Mode")
-    print("Updating precious metals prices every 60 seconds")
+    print("Updating precious metals prices at the top of each minute")
     print("Press Ctrl+C to stop")
     print("="*50 + "\n")
 
@@ -396,6 +396,21 @@ def headless_mode():
 
     update_count = 0
 
+    # Calculate seconds until the next top of the minute
+    current_time = time.time()
+    seconds_into_minute = current_time % 60
+    seconds_until_next_minute = 60 - seconds_into_minute
+
+    print(f"Waiting {seconds_until_next_minute:.1f} seconds until next top of minute...")
+    print(f"First update will occur at {time.strftime('%H:%M:00', time.localtime(current_time + seconds_until_next_minute))}\n")
+
+    # Wait until the top of the next minute (check running flag every 0.1 seconds for responsiveness)
+    wait_time = 0
+    while wait_time < seconds_until_next_minute and running:
+        time.sleep(0.1)
+        wait_time += 0.1
+
+    # Main update loop - runs at the top of each minute
     while running:
         update_count += 1
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Update #{update_count}")
@@ -411,11 +426,11 @@ def headless_mode():
         except Exception as e:
             print(f"  ✗ Error: {str(e)}")
 
-        # Wait 60 seconds before next update (check running flag every second)
-        for _ in range(60):
+        # Wait 60 seconds before next update (check running flag every 0.1 seconds for responsiveness)
+        for _ in range(600):  # 600 * 0.1 = 60 seconds
             if not running:
                 break
-            time.sleep(1)
+            time.sleep(0.1)
 
     print("\nStopped.")
 
