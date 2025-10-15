@@ -10,7 +10,7 @@ import signal
 import sys
 from vestaboard_client import VestaboardClient
 from llm_client import LLMClient
-from config import LLM_MODELS
+from config import LLM_MODELS, REFRESH_INTERVAL
 from typing import Tuple
 
 
@@ -368,11 +368,11 @@ class VestaboardApp:
 
 def headless_mode():
     """
-    Run in headless mode - updates precious metals prices at the top of every minute.
+    Run in headless mode - updates precious metals prices based on the configured refresh interval.
     """
     print("\n" + "="*50)
     print("Vestaboard Controller - Headless Mode")
-    print("Updating precious metals prices at the top of each minute")
+    print(f"Updating precious metals prices every {REFRESH_INTERVAL} seconds")
     print("Press Ctrl+C to stop")
     print("="*50 + "\n")
 
@@ -426,8 +426,9 @@ def headless_mode():
         except Exception as e:
             print(f"  ✗ Error: {str(e)}")
 
-        # Wait 60 seconds before next update (check running flag every 0.1 seconds for responsiveness)
-        for _ in range(600):  # 600 * 0.1 = 60 seconds
+        # Wait for configured interval before next update (check running flag every 0.1 seconds for responsiveness)
+        iterations = int(REFRESH_INTERVAL * 10)  # Convert seconds to 0.1 second iterations
+        for _ in range(iterations):
             if not running:
                 break
             time.sleep(0.1)

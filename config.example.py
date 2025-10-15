@@ -30,3 +30,6 @@ LLM_MODELS = {
 
 # Default model for AI chat
 DEFAULT_LLM_MODEL = 'Qwen3-4B-2507'
+
+# Refresh cycle for headless mode (in seconds)
+REFRESH_INTERVAL = 60  # Update interval for precious metals prices in headless mode
