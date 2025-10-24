@@ -13,9 +13,10 @@ class MetalsScraper:
 
     def __init__(self):
         """Initialize the metals scraper."""
-        self.url = "https://www.kitco.com/price/precious-metals"
+        self.gold_url = "https://www.kitco.com/charts/gold"
+        self.silver_url = "https://www.kitco.com/charts/silver"
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
 
     def fetch_prices(self) -> Dict[str, any]:
@@ -26,24 +27,24 @@ class MetalsScraper:
             Dictionary containing price data for Gold and Silver
         """
         try:
-            response = requests.get(self.url, headers=self.headers, timeout=10)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Find the table with precious metals prices
-            prices = {
-                'gold': self._extract_metal_data(soup, 'Gold'),
-                'silver': self._extract_metal_data(soup, 'Silver')
-            }
+            # Fetch gold prices
+            gold_data = self._fetch_metal_from_chart('gold', self.gold_url)
+            
+            # Fetch silver prices
+            silver_data = self._fetch_metal_from_chart('silver', self.silver_url)
 
             # Validate that we got data
-            if not prices['gold'] or not prices['silver']:
+            if not gold_data or not silver_data:
                 return {
                     'status': 'error',
                     'message': 'Failed to extract price data from Kitco',
                     'data': None
                 }
+
+            prices = {
+                'gold': gold_data,
+                'silver': silver_data
+            }
 
             return {
                 'status': 'success',
@@ -64,67 +65,63 @@ class MetalsScraper:
                 'data': None
             }
 
-    def _extract_metal_data(self, soup: BeautifulSoup, metal_name: str) -> Optional[Dict]:
+    def _fetch_metal_from_chart(self, metal_name: str, url: str) -> Optional[Dict]:
         """
-        Extract price data for a specific metal.
+        Fetch price data for a specific metal from its chart page.
 
         Args:
-            soup: BeautifulSoup object of the page
-            metal_name: Name of the metal to extract (e.g., 'Gold', 'Silver')
+            metal_name: Name of the metal (e.g., 'gold', 'silver')
+            url: URL of the metal's chart page
 
         Returns:
             Dictionary with metal data or None if not found
         """
         try:
-            # Find the desktop BidAskGrid list
-            bid_ask_list = soup.find('ul', class_='BidAskGrid_listify__1liIU')
-
-            if not bid_ask_list:
+            response = requests.get(url, headers=self.headers, timeout=15)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Find the bid price - it's in an h3 with specific classes
+            bid_h3 = soup.find('h3', class_=lambda x: x and 'text-4xl' in x and 'font-bold' in x)
+            if not bid_h3:
+                print(f"Could not find bid price for {metal_name}")
                 return None
-
-            # Find all list items (each metal is a list item)
-            list_items = bid_ask_list.find_all('li')
-
-            for item in list_items:
-                # Find the gridifier div that contains the data
-                gridifier = item.find('div', class_='BidAskGrid_gridifier__l1T1o')
-
-                if not gridifier:
-                    continue
-
-                # Get all span elements in order
-                spans = gridifier.find_all('span', recursive=False)
-
-                if len(spans) < 5:
-                    continue
-
-                # First span contains the metal name (inside a link)
-                metal_link = spans[0].find('a')
-                if metal_link:
-                    metal_text = metal_link.get_text(strip=True)
-                else:
-                    metal_text = spans[0].get_text(strip=True)
-
-                # Check if this is the metal we're looking for
-                if metal_name.lower() in metal_text.lower():
-                    # Extract the data
-                    date = spans[1].get_text(strip=True)
-                    time = spans[2].get_text(strip=True)
-                    bid = spans[3].get_text(strip=True)
-                    ask = spans[4].get_text(strip=True)
-
-                    return {
-                        'metal': metal_text,
-                        'date': date,
-                        'time': time,
-                        'bid': bid,
-                        'ask': ask
-                    }
-
-            return None
+            
+            bid_price = bid_h3.get_text(strip=True)
+            
+            # Find the ask price - look for the "Ask" label and get the price next to it
+            ask_price = None
+            ask_divs = soup.find_all('div', class_=lambda x: x and 'text-sm' in str(x) and 'font-normal' in str(x))
+            for ask_div in ask_divs:
+                if 'Ask' in ask_div.get_text():
+                    # The price is in the sibling div with text-[19px] class
+                    parent = ask_div.parent
+                    price_div = parent.find('div', class_=lambda x: x and 'text-[19px]' in str(x))
+                    if price_div:
+                        ask_price = price_div.get_text(strip=True)
+                        break
+            
+            if not ask_price:
+                print(f"Could not find ask price for {metal_name}")
+                return None
+            
+            # Get current time (the page doesn't show explicit timestamp in the scraped section)
+            from datetime import datetime
+            now = datetime.now()
+            date_str = now.strftime("%b %d, %Y")
+            time_str = now.strftime("%I:%M %p")
+            
+            return {
+                'metal': metal_name.capitalize(),
+                'date': date_str,
+                'time': time_str,
+                'bid': bid_price,
+                'ask': ask_price
+            }
 
         except Exception as e:
-            print(f"Error extracting {metal_name} data: {str(e)}")
+            print(f"Error fetching {metal_name} data: {str(e)}")
             import traceback
             traceback.print_exc()
             return None
