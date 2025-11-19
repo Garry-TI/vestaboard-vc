@@ -25,6 +25,22 @@ VESTABOARD_CHARS = {
     ' ': 0
 }
 
+# Reverse mapping: character code to character
+CODE_TO_CHAR = {code: char for char, code in VESTABOARD_CHARS.items()}
+
+# Color tile codes and their colors
+COLOR_TILES = {
+    63: ('Red', '#FF0000'),
+    64: ('Orange', '#FF8800'),
+    65: ('Yellow', '#FFD700'),
+    66: ('Green', '#00AA00'),
+    67: ('Blue', '#0066FF'),
+    68: ('Violet', '#8800FF'),
+    69: ('White', '#FFFFFF'),
+    70: ('Black', '#000000'),
+    71: ('Filled', '#333333')
+}
+
 
 class VestaboardClient:
     """Wrapper class for Vestaboard operations."""
@@ -252,3 +268,88 @@ class VestaboardClient:
                 'status': 'error',
                 'message': f'Error displaying metals prices: {str(e)}'
             }
+
+    def generate_board_html(self, board_data) -> str:
+        """
+        Generate HTML representation of the Vestaboard display.
+
+        Args:
+            board_data: 2D array of character codes (6 rows x 22 columns)
+
+        Returns:
+            HTML string with styled Vestaboard grid
+        """
+        if not board_data or not isinstance(board_data, list):
+            return "<div style='padding: 20px; text-align: center;'>No board data available</div>"
+
+        html = """
+        <style>
+            .vestaboard-container {
+                background-color: #1a1a1a;
+                padding: 12px;
+                border-radius: 8px;
+                display: block;
+                margin: 0 auto;
+                width: fit-content;
+                max-width: 100%;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            }
+            .vestaboard-grid {
+                display: grid;
+                grid-template-columns: repeat(22, 27px);
+                grid-template-rows: repeat(6, 34px);
+                gap: 2px;
+                background-color: #0a0a0a;
+                padding: 5px;
+                border-radius: 4px;
+            }
+            .vestaboard-tile {
+                width: 27px;
+                height: 34px;
+                background-color: #000000;
+                border: 1px solid #333;
+                border-radius: 2px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: 'Courier New', monospace;
+                font-size: 18px;
+                font-weight: bold;
+                color: #FF8800;
+                text-align: center;
+            }
+            .vestaboard-color-tile {
+                border: none;
+            }
+        </style>
+        <div class="vestaboard-container">
+            <div class="vestaboard-grid">
+        """
+
+        for row in board_data:
+            for code in row:
+                if code in COLOR_TILES:
+                    # Color tile
+                    color_name, color_hex = COLOR_TILES[code]
+                    html += f'<div class="vestaboard-tile vestaboard-color-tile" style="background-color: {color_hex};" title="{color_name}"></div>'
+                else:
+                    # Character tile
+                    char = CODE_TO_CHAR.get(code, ' ')
+                    # HTML escape special characters
+                    if char == '<':
+                        char = '&lt;'
+                    elif char == '>':
+                        char = '&gt;'
+                    elif char == '&':
+                        char = '&amp;'
+                    elif char == ' ':
+                        char = '&nbsp;'
+                    
+                    html += f'<div class="vestaboard-tile">{char}</div>'
+
+        html += """
+            </div>
+        </div>
+        """
+
+        return html
