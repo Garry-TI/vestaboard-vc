@@ -6,6 +6,14 @@ Fetches Gold and Silver bid/ask prices from Kitco.com.
 import requests
 from bs4 import BeautifulSoup
 from typing import Dict, Optional
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+import time
 
 
 class MetalsScraper:
@@ -18,6 +26,7 @@ class MetalsScraper:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
+        self.driver = None
 
     def fetch_prices(self) -> Dict[str, any]:
         """
@@ -27,6 +36,7 @@ class MetalsScraper:
             Dictionary containing price data for Gold and Silver
         """
         try:
+            print(f"[DEBUG] fetch_prices called - fetching fresh data from Kitco")
             # Fetch gold prices
             gold_data = self._fetch_metal_from_chart('gold', self.gold_url)
 
@@ -80,9 +90,24 @@ class MetalsScraper:
                 'data': None
             }
 
+    def _init_driver(self):
+        """Initialize the Selenium WebDriver if not already initialized."""
+        if self.driver is None:
+            chrome_options = Options()
+            chrome_options.add_argument('--headless')  # Run in background
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument(f'user-agent={self.headers["User-Agent"]}')
+
+            # Use webdriver-manager to handle ChromeDriver installation
+            service = Service(ChromeDriverManager().install())
+            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+            print("[DEBUG] Selenium WebDriver initialized")
+
     def _fetch_metal_from_chart(self, metal_name: str, url: str) -> Optional[Dict]:
         """
-        Fetch price data for a specific metal from its chart page.
+        Fetch price data for a specific metal from its chart page using Selenium.
 
         Args:
             metal_name: Name of the metal (e.g., 'gold', 'silver')
@@ -92,50 +117,55 @@ class MetalsScraper:
             Dictionary with metal data or None if not found
         """
         try:
-            import json
-            response = requests.get(url, headers=self.headers, timeout=15)
-            response.raise_for_status()
+            # Initialize driver if needed
+            self._init_driver()
 
-            soup = BeautifulSoup(response.content, 'html.parser')
+            # Load the page
+            print(f"[DEBUG] Loading {metal_name} page: {url}")
+            self.driver.get(url)
 
-            # Find the __NEXT_DATA__ script tag containing JSON data
-            next_data_script = soup.find('script', id='__NEXT_DATA__')
-            if not next_data_script:
-                print(f"Could not find __NEXT_DATA__ script for {metal_name}")
+            # Wait for the bid price element to be present and visible
+            # This ensures JavaScript has loaded and updated the prices
+            wait = WebDriverWait(self.driver, 20)
+            bid_element = wait.until(
+                EC.presence_of_element_located((
+                    By.XPATH,
+                    "//h3[contains(@class, 'text-4xl') and contains(@class, 'font-bold') and contains(@class, 'font-mulish')]"
+                ))
+            )
+
+            # Wait a bit more for JavaScript to update the price
+            time.sleep(2)
+
+            # Get the page source after JavaScript execution
+            page_source = self.driver.page_source
+            soup = BeautifulSoup(page_source, 'html.parser')
+
+            # Find the bid price - it's in an h3 with specific classes
+            bid_h3 = soup.find('h3', class_=lambda x: x and 'text-4xl' in x and 'font-bold' in x and 'font-mulish' in x)
+            if not bid_h3:
+                print(f"Could not find bid price for {metal_name}")
                 return None
 
-            # Parse the JSON data
-            data = json.loads(next_data_script.string)
+            bid_price = bid_h3.get_text(strip=True)
+            print(f"[DEBUG] {metal_name} - Found bid price: {bid_price}")
 
-            # Navigate to the metal quote data
-            queries = data.get('props', {}).get('pageProps', {}).get('dehydratedState', {}).get('queries', [])
-
-            # Find the metalQuote query
-            metal_data = None
-            for query in queries:
-                query_key = query.get('queryKey', [])
-                if len(query_key) > 0 and query_key[0] == 'metalQuote':
-                    metal_quote = query.get('state', {}).get('data', {}).get('GetMetalQuoteV3', {})
-                    results = metal_quote.get('results', [])
-                    if results:
-                        metal_data = results[0]
+            # Find the ask price - look for the "Ask" label and get the price next to it
+            ask_price = None
+            ask_divs = soup.find_all('div', class_=lambda x: x and 'text-sm' in str(x) and 'font-normal' in str(x))
+            for ask_div in ask_divs:
+                if 'Ask' in ask_div.get_text():
+                    # The price is in the sibling div with text-[19px] and font-normal classes
+                    parent = ask_div.parent
+                    price_div = parent.find('div', class_=lambda x: x and 'text-[19px]' in str(x) and 'font-normal' in str(x))
+                    if price_div:
+                        ask_price = price_div.get_text(strip=True)
+                        print(f"[DEBUG] {metal_name} - Found ask price: {ask_price}")
                         break
 
-            if not metal_data:
-                print(f"Could not find metal quote data for {metal_name}")
+            if not ask_price:
+                print(f"Could not find ask price for {metal_name}")
                 return None
-
-            # Extract bid and ask prices
-            bid_price = metal_data.get('bid')
-            ask_price = metal_data.get('ask')
-
-            if bid_price is None or ask_price is None:
-                print(f"Could not find bid/ask prices for {metal_name}")
-                return None
-
-            # Format prices with commas for thousands
-            bid_str = f"{bid_price:,.2f}"
-            ask_str = f"{ask_price:,.2f}"
 
             # Get current time
             from datetime import datetime
@@ -147,8 +177,8 @@ class MetalsScraper:
                 'metal': metal_name.capitalize(),
                 'date': date_str,
                 'time': time_str,
-                'bid': bid_str,
-                'ask': ask_str
+                'bid': bid_price,
+                'ask': ask_price
             }
 
         except Exception as e:
@@ -156,6 +186,15 @@ class MetalsScraper:
             import traceback
             traceback.print_exc()
             return None
+
+    def __del__(self):
+        """Cleanup: Close the WebDriver when the scraper is destroyed."""
+        if self.driver is not None:
+            try:
+                self.driver.quit()
+                print("[DEBUG] Selenium WebDriver closed")
+            except:
+                pass
 
     def format_for_vestaboard(self, prices_data: Dict) -> str:
         """

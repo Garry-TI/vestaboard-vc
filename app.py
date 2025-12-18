@@ -410,6 +410,50 @@ class VestaboardApp:
         return interface
 
 
+def kill_existing_instances():
+    """
+    Kill any existing instances of this script running in headless mode.
+    Prevents zombie processes from updating the vestaboard with stale data.
+    """
+    import os
+    import subprocess
+
+    current_pid = os.getpid()
+
+    try:
+        # Find all python processes running app.py --headless
+        result = subprocess.run(
+            ['ps', 'aux'],
+            capture_output=True,
+            text=True
+        )
+
+        killed_count = 0
+        for line in result.stdout.split('\n'):
+            if 'python' in line and 'app.py' in line and '--headless' in line:
+                # Extract the PID (second column)
+                parts = line.split()
+                if len(parts) > 1:
+                    try:
+                        pid = int(parts[1])
+                        # Don't kill ourselves
+                        if pid != current_pid:
+                            print(f"Found existing instance (PID {pid}), killing it...")
+                            os.kill(pid, signal.SIGTERM)
+                            killed_count += 1
+                            time.sleep(0.5)  # Give it time to shut down
+                    except (ValueError, ProcessLookupError, PermissionError) as e:
+                        pass
+
+        if killed_count > 0:
+            print(f"✓ Killed {killed_count} existing instance(s)")
+            time.sleep(1)  # Wait for cleanup
+        else:
+            print("✓ No existing instances found")
+
+    except Exception as e:
+        print(f"Warning: Could not check for existing instances: {e}")
+
 def headless_mode():
     """
     Run in headless mode - updates precious metals prices based on the configured refresh interval.
@@ -419,6 +463,10 @@ def headless_mode():
     print(f"Updating precious metals prices every {REFRESH_INTERVAL} seconds")
     print("Press Ctrl+C to stop")
     print("="*50 + "\n")
+
+    # Kill any existing instances before starting
+    kill_existing_instances()
+    print()
 
     app = VestaboardApp()
 
