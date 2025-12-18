@@ -29,7 +29,7 @@ class MetalsScraper:
         try:
             # Fetch gold prices
             gold_data = self._fetch_metal_from_chart('gold', self.gold_url)
-            
+
             # Fetch silver prices
             silver_data = self._fetch_metal_from_chart('silver', self.silver_url)
 
@@ -52,7 +52,22 @@ class MetalsScraper:
                 'data': prices
             }
 
+        except requests.exceptions.ReadTimeout:
+            return {
+                'status': 'error',
+                'message': 'kitco.com website down. Precious metals SPOT PRICES are NOT UP TO DATE.',
+                'data': None,
+                'timeout': True
+            }
         except requests.RequestException as e:
+            # Check if the error message contains "Read timed out"
+            if "Read timed out" in str(e):
+                return {
+                    'status': 'error',
+                    'message': 'kitco.com website down. Precious metals SPOT PRICES are NOT UP TO DATE.',
+                    'data': None,
+                    'timeout': True
+                }
             return {
                 'status': 'error',
                 'message': f'Network error: {str(e)}',

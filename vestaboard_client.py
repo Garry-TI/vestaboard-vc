@@ -230,6 +230,14 @@ class VestaboardClient:
             result = self.metals_scraper.fetch_prices()
 
             if result['status'] != 'success':
+                # If it's a timeout error, display the error message on Vestaboard
+                if result.get('timeout'):
+                    error_message = result['message']
+                    self.board.post(error_message)
+                    return {
+                        'status': 'error',
+                        'message': f'Timeout error displayed on Vestaboard: {error_message}'
+                    }
                 return result
 
             # Format the prices for Vestaboard display
