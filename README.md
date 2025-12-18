@@ -27,11 +27,11 @@ A Python application with a Gradio web interface for sending and reading message
 3. **Configure your Vestaboard credentials**:
    - Open `config.py`
    - Replace `YOUR_API_KEY_HERE` with your actual Vestaboard API key (the key you received after enabling Local API)
-   - Verify the IP address matches your Vestaboard (currently set to `10.1.10.61`)
+   - Verify the IP address matches your Vestaboard (currently set to `192.168.1.1`)
 
    ```python
    VESTABOARD_CONFIG = {
-       'ip': '10.1.10.61',
+       'ip': '192.168.1.1',
        'api_key': 'your-actual-api-key-here'
    }
    ```
@@ -78,7 +78,7 @@ vestaboard-vc/
 
 1. **Verify your Vestaboard is on the network**:
    ```bash
-   ping 10.1.10.61
+   ping <Vestaboard IP Address>
    ```
 
 2. **Check your API key**:

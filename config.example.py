@@ -6,7 +6,7 @@ Copy this to config.py and fill in your actual credentials.
 # Local Vestaboard Configuration
 # Use the API key you received after enabling the Local API (not the enablement token)
 VESTABOARD_CONFIG = {
-    'ip': '10.1.10.61',
+    'ip': '192.168.10.61',
     'api_key': 'YOUR API KEY HERE'  # Replace with your actual API key
 }
 # LLM Model Configuration

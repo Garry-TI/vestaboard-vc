@@ -79,6 +79,43 @@ class VestaboardApp:
         else:
             return result['message']
 
+    def read_message_with_visual(self) -> Tuple[str, str]:
+        """
+        Read the current message from the Vestaboard and return both raw data and visual HTML.
+
+        Returns:
+            Tuple of (raw board content, HTML visualization)
+        """
+        if not self.client:
+            return "Error: Client not initialized", "<div style='padding: 20px;'>Error: Client not initialized</div>"
+
+        result = self.client.read_message()
+        if result['status'] == 'success':
+            board_data = result['data']
+            if board_data:
+                raw_text = f"Current board content:\n{self._format_board_data(board_data)}"
+                
+                # Extract the actual 2D array from the board data
+                # The API may return {'message': [[...], [...]]} or just [[...], [...]]
+                if isinstance(board_data, dict) and 'message' in board_data:
+                    board_array = board_data['message']
+                elif isinstance(board_data, list):
+                    board_array = board_data
+                else:
+                    board_array = None
+                
+                if board_array:
+                    html_visual = self.client.generate_board_html(board_array)
+                else:
+                    html_visual = "<div style='padding: 20px; text-align: center;'>Unable to parse board data</div>"
+                
+                return raw_text, html_visual
+            else:
+                return "Board is empty", "<div style='padding: 20px; text-align: center;'>Board is empty</div>"
+        else:
+            error_msg = result['message']
+            return error_msg, f"<div style='padding: 20px; text-align: center;'>{error_msg}</div>"
+
     def test_color_bits(self) -> str:
         """
         Test all color tiles on the Vestaboard.
@@ -273,7 +310,7 @@ class VestaboardApp:
             gr.Markdown("---")
 
             with gr.Row():
-                with gr.Column(scale=2):
+                with gr.Column():
                     gr.Markdown("### Send Message")
                     message_input = gr.Textbox(
                         label="Message",
@@ -287,13 +324,20 @@ class VestaboardApp:
                         interactive=False
                     )
 
+            with gr.Row():
                 with gr.Column(scale=1):
                     gr.Markdown("### Read Current Message")
                     read_btn = gr.Button("Read from Vestaboard", variant="secondary")
                     read_output = gr.Textbox(
-                        label="Current Board Content",
+                        label="Current Board Content (Raw Data)",
                         lines=10,
                         interactive=False
+                    )
+
+                with gr.Column(scale=2):
+                    gr.Markdown("### Visual Display")
+                    read_visual = gr.HTML(
+                        value="<div style='padding: 20px; text-align: center; color: #666;'>Click 'Read from Vestaboard' to display the board</div>"
                     )
 
             gr.Markdown("---")
@@ -352,8 +396,8 @@ class VestaboardApp:
             )
 
             read_btn.click(
-                fn=self.read_message,
-                outputs=read_output
+                fn=self.read_message_with_visual,
+                outputs=[read_output, read_visual]
             )
 
             # Add Enter key shortcut for sending messages
