@@ -98,7 +98,7 @@ class MetalsScraper:
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Find the bid price - it's in an h3 with specific classes
-            bid_h3 = soup.find('h3', class_=lambda x: x and 'text-4xl' in x and 'font-bold' in x)
+            bid_h3 = soup.find('h3', class_=lambda x: x and 'text-4xl' in x and 'font-bold' in x and 'font-mulish' in x)
             if not bid_h3:
                 print(f"Could not find bid price for {metal_name}")
                 return None
@@ -110,9 +110,9 @@ class MetalsScraper:
             ask_divs = soup.find_all('div', class_=lambda x: x and 'text-sm' in str(x) and 'font-normal' in str(x))
             for ask_div in ask_divs:
                 if 'Ask' in ask_div.get_text():
-                    # The price is in the sibling div with text-[19px] class
+                    # The price is in the sibling div with text-[19px] and font-normal classes
                     parent = ask_div.parent
-                    price_div = parent.find('div', class_=lambda x: x and 'text-[19px]' in str(x))
+                    price_div = parent.find('div', class_=lambda x: x and 'text-[19px]' in str(x) and 'font-normal' in str(x))
                     if price_div:
                         ask_price = price_div.get_text(strip=True)
                         break
