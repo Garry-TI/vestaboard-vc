@@ -92,47 +92,63 @@ class MetalsScraper:
             Dictionary with metal data or None if not found
         """
         try:
+            import json
             response = requests.get(url, headers=self.headers, timeout=15)
             response.raise_for_status()
-            
+
             soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Find the bid price - it's in an h3 with specific classes
-            bid_h3 = soup.find('h3', class_=lambda x: x and 'text-4xl' in x and 'font-bold' in x and 'font-mulish' in x)
-            if not bid_h3:
-                print(f"Could not find bid price for {metal_name}")
+
+            # Find the __NEXT_DATA__ script tag containing JSON data
+            next_data_script = soup.find('script', id='__NEXT_DATA__')
+            if not next_data_script:
+                print(f"Could not find __NEXT_DATA__ script for {metal_name}")
                 return None
-            
-            bid_price = bid_h3.get_text(strip=True)
-            
-            # Find the ask price - look for the "Ask" label and get the price next to it
-            ask_price = None
-            ask_divs = soup.find_all('div', class_=lambda x: x and 'text-sm' in str(x) and 'font-normal' in str(x))
-            for ask_div in ask_divs:
-                if 'Ask' in ask_div.get_text():
-                    # The price is in the sibling div with text-[19px] and font-normal classes
-                    parent = ask_div.parent
-                    price_div = parent.find('div', class_=lambda x: x and 'text-[19px]' in str(x) and 'font-normal' in str(x))
-                    if price_div:
-                        ask_price = price_div.get_text(strip=True)
+
+            # Parse the JSON data
+            data = json.loads(next_data_script.string)
+
+            # Navigate to the metal quote data
+            queries = data.get('props', {}).get('pageProps', {}).get('dehydratedState', {}).get('queries', [])
+
+            # Find the metalQuote query
+            metal_data = None
+            for query in queries:
+                query_key = query.get('queryKey', [])
+                if len(query_key) > 0 and query_key[0] == 'metalQuote':
+                    metal_quote = query.get('state', {}).get('data', {}).get('GetMetalQuoteV3', {})
+                    results = metal_quote.get('results', [])
+                    if results:
+                        metal_data = results[0]
                         break
-            
-            if not ask_price:
-                print(f"Could not find ask price for {metal_name}")
+
+            if not metal_data:
+                print(f"Could not find metal quote data for {metal_name}")
                 return None
-            
-            # Get current time (the page doesn't show explicit timestamp in the scraped section)
+
+            # Extract bid and ask prices
+            bid_price = metal_data.get('bid')
+            ask_price = metal_data.get('ask')
+
+            if bid_price is None or ask_price is None:
+                print(f"Could not find bid/ask prices for {metal_name}")
+                return None
+
+            # Format prices with commas for thousands
+            bid_str = f"{bid_price:,.2f}"
+            ask_str = f"{ask_price:,.2f}"
+
+            # Get current time
             from datetime import datetime
             now = datetime.now()
             date_str = now.strftime("%b %d, %Y")
             time_str = now.strftime("%I:%M %p")
-            
+
             return {
                 'metal': metal_name.capitalize(),
                 'date': date_str,
                 'time': time_str,
-                'bid': bid_price,
-                'ask': ask_price
+                'bid': bid_str,
+                'ask': ask_str
             }
 
         except Exception as e:
